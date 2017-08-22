@@ -1,1 +1,1 @@
-module.exports = require("./util/getAggregatedStatistics");
+module.exports = require("./util/getStatistics");
