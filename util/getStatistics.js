@@ -31,8 +31,9 @@
 
 // https://github.com/ChromeDevTools/devtools-frontend/blob/master/front_end/timeline/TimelineUIUtils.js
 
-const DevtoolsTimelineModel = require('devtools-timeline-model');
-const cleanTrace = require('./cleanTraceEvents');
+const DevtoolsTimelineModel = require("devtools-timeline-model");
+const cleanTraceEvents = require("./cleanTraceEvents");
+const mergeRanges = require("merge-ranges");
 
 // events can be either a string of the trace data or the JSON.parse'd equivalent
 const categoryCache = new Map();
@@ -75,10 +76,7 @@ const categories = {
     "ThreadState::completeSweep",
     "BlinkGCMarking"
   ],
-  other: [
-    "Task",
-    "Program"
-  ],
+  other: ["Task", "Program"],
   rendering: [
     "Animation",
     "RequestMainThreadFrame",
@@ -105,14 +103,10 @@ const categories = {
     "CompositeLayers",
     "MarkFirstPaint",
     "Decode Image",
-    "Resize Image",
+    "Resize Image"
   ],
-  gpu: [
-    "GPUTask"
-  ],
-  async: [
-    "async"
-  ],
+  gpu: ["GPUTask"],
+  async: ["async"],
   loading: [
     "ParseHTML",
     "ParseAuthorStyleSheet",
@@ -136,26 +130,29 @@ function getCategory(name) {
     }
   }
 
-  categoryCache.set(name, 'other');
+  categoryCache.set(name, "other");
 
-  return 'other';
+  return "other";
 }
 
 let TimelineModel;
-const taskProcessed = Symbol('taskProcessed');
+const taskProcessed = Symbol("taskProcessed");
 
 function _filterForStats() {
   return event => isTopLevelEvent(event);
 }
 
 function isTopLevelEvent(event) {
-  return event._event._parsedCategories.has('toplevel') ||
-    event._event._parsedCategories.has('disabled-by-default-devtools.timeline') &&
-    event.name === 'Program'; // Older timelines may have this instead of toplevel.
+  return (
+    event._event._parsedCategories.has("toplevel") ||
+    (event._event._parsedCategories.has(
+      "disabled-by-default-devtools.timeline"
+    ) &&
+      event.name === "Program")
+  ); // Older timelines may have this instead of toplevel.
 }
 
-function _buildRangeStatsCacheIfNeeded(model) {
-  const tasks = model.mainThreadTasks();
+function _buildRangeStatsCacheIfNeeded(tasks, events) {
   const filter = _filterForStats();
   const firstTask = tasks.find(filter);
 
@@ -166,7 +163,15 @@ function _buildRangeStatsCacheIfNeeded(model) {
   const aggregatedStats = {};
   const ownTimes = [];
 
-  TimelineModel.forEachEvent(model.mainThreadEvents(), onStartEvent, onEndEvent, undefined, undefined, undefined, filter);
+  TimelineModel.forEachEvent(
+    events,
+    onStartEvent,
+    onEndEvent,
+    undefined,
+    undefined,
+    undefined,
+    filter
+  );
 
   function onStartEvent(e) {
     if (ownTimes.length) {
@@ -179,35 +184,57 @@ function _buildRangeStatsCacheIfNeeded(model) {
   function onEndEvent(e) {
     const category = getCategory(e.name);
 
-    aggregatedStats[category] = (aggregatedStats[category] || 0) + ownTimes.pop();
+    aggregatedStats[category] =
+      (aggregatedStats[category] || 0) + ownTimes.pop();
   }
 
   return aggregatedStats;
 }
 
-
 exports.default = exports.getStatistics = function getStatistics(events) {
-  events = cleanTrace(events);
+  events = cleanTraceEvents(events);
 
   const model = new DevtoolsTimelineModel(events).timelineModel();
 
   if (TimelineModel == null) {
     TimelineModel = model.constructor;
   }
- 
+
   const startTime = model.minimumRecordTime();
   const endTime = model.maximumRecordTime();
-  const aggregatedStats = _buildRangeStatsCacheIfNeeded(model);
+  const aggregatedStats = _buildRangeStatsCacheIfNeeded(
+    model.mainThreadTasks(),
+    model.mainThreadEvents()
+  );
   const tasks = model.mainThreadTasks();
-  
+
   if (!tasks.length) {
     return {};
   }
 
-  const aggregatedTotal = Object.values(aggregatedStats).reduce((a, b) => a + b, 0);
+  const aggregatedTotal = Object.values(aggregatedStats).reduce(
+    (a, b) => a + b,
+    0
+  );
 
   aggregatedStats.idle = Math.max(0, endTime - startTime - aggregatedTotal);
   aggregatedStats.busy = aggregatedTotal;
+  aggregatedStats.gpu = model
+    .gpuEvents()
+    .reduce((memo, event) => event.duration + memo, 0);
+
+  const asyncEvents = [];
+
+  for (const eventsByGroup of model.mainThreadAsyncEvents().values()) {
+    for (const event of eventsByGroup) {
+      asyncEvents.push([event.startTime, event.endTime]);
+    }
+  }
+
+  aggregatedStats.async = mergeRanges(asyncEvents).reduce(
+    (memo, [start, end]) => end - start + memo,
+    0
+  );
 
   return aggregatedStats;
 };
@@ -221,11 +248,11 @@ exports.traceCategories = [
   "toplevel",
   "blink.console",
   "latencyInfo",
-  "disabled-by-default-devtools.timeline.stack",
+  "disabled-by-default-devtools.timeline.stack"
   // "disabled-by-default-devtools.screenshot",
   // "disabled-by-default-v8.cpu_profile",
   // "disabled-by-default-v8.cpu_profiler",
   // "disabled-by-default-v8.cpu_profiler.hires"
 ];
 
-exports.categories = [...Object.keys(categories), 'idle', 'busy'];
+exports.categories = [...Object.keys(categories), "idle", "busy"];

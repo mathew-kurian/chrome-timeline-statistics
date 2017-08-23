@@ -13,6 +13,10 @@ devtools-timeline-model@^1.3.1:
     chrome-devtools-frontend "1.0.445684"
     resolve "1.1.7"
 
+merge-ranges@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/merge-ranges/-/merge-ranges-1.0.2.tgz#0e4fcaac77302079c8b30720c2fe9ba9300e535f"
+
 resolve@1.1.7:
   version "1.1.7"
   resolved "https://registry.yarnpkg.com/resolve/-/resolve-1.1.7.tgz#203114d82ad2c5ed9e8e0411b3932875e889e97b"
