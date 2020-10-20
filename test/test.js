@@ -3,6 +3,7 @@ const trace = require("fs").readFileSync("./fixtures/trace.json", "utf8");
 const { getStatistics } = require("../");
 
 assert.deepEqual(getStatistics(JSON.parse(trace)), {
+  topLevelEvents: [],
   other: 71.35399998165667,
   rendering: 72.80200000293553,
   painting: 263.37199999578297,
@@ -11,5 +12,5 @@ assert.deepEqual(getStatistics(JSON.parse(trace)), {
   idle: 5503.998000007123,
   busy: 783.4519999921322,
   gpu: 487.29599999450147,
-  async: 242.6090000011027
+  async: 242.6090000011027,
 });

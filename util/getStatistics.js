@@ -74,7 +74,7 @@ const categories = {
     "LatencyInfo",
     "ThreadState::performIdleLazySweep",
     "ThreadState::completeSweep",
-    "BlinkGCMarking"
+    "BlinkGCMarking",
   ],
   other: ["Task", "Program"],
   rendering: [
@@ -92,7 +92,7 @@ const categories = {
     "UpdateLayerTree",
     "ScrollLayer",
     "firstMeaningfulPaint",
-    "firstMeaningfulPaintCandidate"
+    "firstMeaningfulPaintCandidate",
   ],
   painting: [
     "PaintSetup",
@@ -103,7 +103,7 @@ const categories = {
     "CompositeLayers",
     "MarkFirstPaint",
     "Decode Image",
-    "Resize Image"
+    "Resize Image",
   ],
   gpu: ["GPUTask"],
   async: ["async"],
@@ -113,8 +113,8 @@ const categories = {
     "ResourceSendRequest",
     "ResourceReceiveResponse",
     "ResourceFinish",
-    "ResourceReceivedData"
-  ]
+    "ResourceReceivedData",
+  ],
 };
 
 function getCategory(name) {
@@ -139,7 +139,7 @@ let TimelineModel;
 const taskProcessed = Symbol("taskProcessed");
 
 function _filterForStats() {
-  return event => isTopLevelEvent(event);
+  return (event) => isTopLevelEvent(event);
 }
 
 function isTopLevelEvent(event) {
@@ -191,7 +191,10 @@ function _buildRangeStatsCacheIfNeeded(tasks, events) {
   return aggregatedStats;
 }
 
-exports.default = exports.getStatistics = function getStatistics(events) {
+exports.default = exports.getStatistics = function getStatistics(
+  events,
+  { topLevelStart = -1, topLevelEnd = -1 } = {}
+) {
   events = cleanTraceEvents(events);
 
   const model = new DevtoolsTimelineModel(events).timelineModel();
@@ -212,11 +215,21 @@ exports.default = exports.getStatistics = function getStatistics(events) {
     return {};
   }
 
+  const topLevelEvents = tasks
+    .filter(
+      (task) =>
+        isTopLevelEvent(task) &&
+        topLevelStart >= task.startTime() &&
+        task.endTime() <= topLevelEnd
+    )
+    .map((task) => [task.startTime(), task.endTime()]);
+
   const aggregatedTotal = Object.values(aggregatedStats).reduce(
     (a, b) => a + b,
     0
   );
 
+  aggregatedStats.topLevelEvents = topLevelEvents;
   aggregatedStats.idle = Math.max(0, endTime - startTime - aggregatedTotal);
   aggregatedStats.busy = aggregatedTotal;
   aggregatedStats.gpu = model
@@ -248,7 +261,7 @@ exports.traceCategories = [
   "toplevel",
   "blink.console",
   "latencyInfo",
-  "disabled-by-default-devtools.timeline.stack"
+  "disabled-by-default-devtools.timeline.stack",
   // "disabled-by-default-devtools.screenshot",
   // "disabled-by-default-v8.cpu_profile",
   // "disabled-by-default-v8.cpu_profiler",
